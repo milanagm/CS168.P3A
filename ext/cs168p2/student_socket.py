@@ -550,7 +550,7 @@ class StudentUSocket(StudentUSocketBase):
     self.bind(dev.ip_addr, 0)
 
     ## Start.Stage 1.1 ##
-
+    
     ## End.Stage 1.1 ##
 
   def tx(self, p, retxed=False):
