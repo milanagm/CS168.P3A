@@ -29,6 +29,7 @@ class StudentUSocketBase(object):
   Most of this class implements the interface to POX.
   """
   _state = CLOSED
+  # [CLOSED, LISTEN, SYN_RECEIVED, ESTABLISHED, SYN_SENT, FIN_WAIT_1, FIN_WAIT_2, CLOSING, TIME_WAIT, CLOSE_WAIT, LAST_ACK]
 
   peer = (None, None) # peer's ip, port
   name = (None, None) # our ip, port
@@ -42,9 +43,13 @@ class StudentUSocketBase(object):
   def __init__(self, manager):
     self.manager = manager
 
-    # Send and receive buffers
+    # Send and receive buffers # represents what I am sending 
+    # The user will append bytes to the back of this array, and you will remove bytes from the front of this array as you send them out
     self.rx_data = b''
+    # self.rx_data is a byte array representing what you’re receiving
+    # with receiving packets, I should append their payloads (in the correct order) to this byte array so that the user can read them.
     self.tx_data = b''
+
 
     self._init_socketlike()
 
@@ -178,6 +183,7 @@ class StudentUSocketBase(object):
     b = self.rx_data[:length]
     self.rx_data = self.rx_data[length:]
     self.rcv.wnd = self.RX_DATA_MAX - len(self.rx_data)
+    # instance variable self.rcv is a RXControlBlock object, which has information about the incoming bytestream that you are receiving
     return b
 
   def send(self, data, flags=0, push=False, wait=False):
@@ -459,6 +465,7 @@ class StudentUSocket(StudentUSocketBase):
     p.ipv4.payload = p.tcp
 
     p.tcp.seq = self.snd.nxt
+                # self.snd.nxt: The next sequence number you should send
     p.tcp.ack = self.rcv.nxt
     p.tcp.ACK = ack
     p.tcp.SYN = syn
@@ -529,6 +536,7 @@ class StudentUSocket(StudentUSocketBase):
     assert not self.is_bound
 
     self.snd = TXControlBlock()
+    # TXControlBlock object, which has information about the outgoing bytestream that you are sending
     self.rcv = RXControlBlock()
     self.rcv.wnd = self.RX_DATA_MAX
 
@@ -541,9 +549,9 @@ class StudentUSocket(StudentUSocketBase):
     self.peer = IPAddr(ip), port
     self.bind(dev.ip_addr, 0)
 
-    ## Start of Stage 1.1 ##
+    ## Start.Stage 1.1 ##
 
-    ## End of Stage 1.1 ##
+    ## End.Stage 1.1 ##
 
   def tx(self, p, retxed=False):
     """
@@ -635,9 +643,11 @@ class StudentUSocket(StudentUSocketBase):
     acceptable_ack = False
     if seg.ACK:
       if seg.ack |LE| self.snd.iss or seg.ack |GT| self.snd.nxt:
+                      # self.snd.iss: my initial sequence number
         return
 
       if self.snd.una |LE| seg.ack and seg.ack |LE| self.snd.nxt:
+         # self.snd.una: The oldest unacknowledged sequence number that you sendt
         acceptable_ack = True
         acked_pkts = self.retx_queue.pop_upto(seg.ack)
         self.log.debug("acked SYN of pkt={0}".format(acked_pkts))
@@ -691,6 +701,7 @@ class StudentUSocket(StudentUSocketBase):
 
     ## Start of Stage 5.1 ##
     self.snd.wnd = self.TX_DATA_MAX # remove when implemented
+    # self.snd.wnd: The current size of your send window, determined by how much buffer space the other side (recipient) has left
     self.snd.wl1 = seg.seq
     self.snd.wl2 = seg.ack
 
