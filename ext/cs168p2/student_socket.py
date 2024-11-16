@@ -550,7 +550,13 @@ class StudentUSocket(StudentUSocketBase):
     self.bind(dev.ip_addr, 0)
 
     ## Start.Stage 1.1 ##
-    
+    self.snd.una = self.snd.iss  # initial sequence number = oldest unacknowledged
+    self.snd.nxt = self.snd.iss + 1  
+
+    syn_packet = self.new_packet(ack=False, data=None, syn=True)
+    self.tx(syn_packet)
+
+    self.state = SYN_SENT
     ## End.Stage 1.1 ##
 
   def tx(self, p, retxed=False):
@@ -596,9 +602,10 @@ class StudentUSocket(StudentUSocketBase):
 
     if self.state is CLOSED:
       return
-    ## Start of Stage 1.2 ##
-
-    ## End of Stage 1.2 ##
+    ## Start.Stage 1.2 ##
+    if self.state is SYN_SENT:
+      self.handle_synsent(seg)
+    ## End.Stage 1.2 ##
     elif self.state in (ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2,
                         CLOSE_WAIT, CLOSING, LAST_ACK, TIME_WAIT):
       if self.acceptable_seg(seg, payload):
@@ -643,7 +650,6 @@ class StudentUSocket(StudentUSocketBase):
     acceptable_ack = False
     if seg.ACK:
       if seg.ack |LE| self.snd.iss or seg.ack |GT| self.snd.nxt:
-                      # self.snd.iss: my initial sequence number
         return
 
       if self.snd.una |LE| seg.ack and seg.ack |LE| self.snd.nxt:
@@ -653,12 +659,16 @@ class StudentUSocket(StudentUSocketBase):
         self.log.debug("acked SYN of pkt={0}".format(acked_pkts))
 
     if acceptable_ack:
-      ## Start of Stage 1.3 ##
+      ## Start.Stage 1.3 ##
+      
+      self.state = ESTABLISHED  
+      self.rcv.nxt = (seg.seq + 1) % (2**32) 
+      ack_packet = self.new_packet(ack=True)  
+      self.tx(ack_packet)
+      self.snd.una = seg.ack
+      self.update_window(seg)
 
-      if self.snd.una |GT| self.snd.iss:
-        pass
-
-      ## End of Stage 1.3 ##
+      ## End.Stage 1.3 ##
 
   def update_rto(self, acked_pkt):
     """
